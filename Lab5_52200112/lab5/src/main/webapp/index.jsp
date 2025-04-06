@@ -1,5 +1,6 @@
 <%@ page contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" %>
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
 <%
     if (session.getAttribute("user") == null) {
         response.sendRedirect("login");
@@ -67,7 +68,10 @@
                     <tr data-id="${product.id}">
                         <td class="product-id">${product.id}</td>
                         <td class="product-name">${product.name}</td>
-                        <td class="product-price">${product.price}</td>
+                        <td class="product-price">
+                            <fmt:formatNumber value="${product.price}" type="number" groupingUsed="true"/>
+                        </td>
+
                         <td>
                             <button class="btn btn-primary edit-product">Chỉnh sửa</button>
                             <a href="deleteProduct?id=${product.id}" class="btn btn-danger" onclick="return confirm('Bạn có chắc chắn muốn xóa?')">Xóa</a>
@@ -79,81 +83,86 @@
         </div>
     </div>
 </div>
-
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script> <%-- Nhúng jQuery nếu chưa có --%>
 <script>
     $(document).ready(function() {
-        $('.edit-product').on('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
+        // Bắt sự kiện click nút "Chỉnh sửa"
+        $('.table').on('click', '.edit-product', function() {
+            var $button = $(this);
+            var $row = $button.closest('tr'); // Tìm hàng (tr) chứa nút được click
+            var productId = $row.data('id'); // Lấy ID từ data-id của hàng
 
-            var row = $(this).closest('tr');
-            var productId = row.data('id');
-            var productName = row.find('.product-name').text().trim();
-            var productPrice = row.find('.product-price').text().trim();
+            // Lấy giá trị hiện tại từ các ô td
+            var currentName = $row.find('.product-name').text();
+            var currentPrice = $row.find('.product-price').text();
 
-            // Lưu giá trị gốc
-            row.find('.product-name').data('original', productName);
-            row.find('.product-price').data('original', productPrice);
+            // Thay thế td bằng input
+            $row.find('.product-name').html('<input type="text" class="form-control form-control-sm edit-name" value="' + currentName + '">');
+            $row.find('.product-price').html('<input type="number" class="form-control form-control-sm edit-price" value="' + currentPrice + '">');
 
-            // Chuyển sang ô input
-            row.find('.product-name').html('<input type="text" class="form-control edit-name" value="' + productName + '">');
-            row.find('.product-price').html('<input type="number" class="form-control edit-price" value="' + productPrice + '">');
-
-            $(this).text('Lưu')
-                .removeClass('edit-product btn-primary')
-                .addClass('save-product btn-success');
+            // Thay đổi nút "Chỉnh sửa" thành "Lưu" và thêm class để xử lý lưu
+            $button.text('Lưu');
+            $button.removeClass('btn-primary edit-product').addClass('btn-success save-product');
+            // Vô hiệu hóa nút xóa tạm thời khi đang sửa
+            $row.find('.btn-danger').hide();
         });
 
-        $(document).on('click', '.save-product', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
+        // Bắt sự kiện click nút "Lưu"
+        $('.table').on('click', '.save-product', function() {
+            var $button = $(this);
+            var $row = $button.closest('tr');
+            var productId = $row.data('id');
 
-            var row = $(this).closest('tr');
-            var productId = row.data('id');
-            var newName = row.find('.edit-name').val().trim();
-            var newPrice = row.find('.edit-price').val();
-            var originalName = row.find('.product-name').data('original');
-            var originalPrice = row.find('.product-price').data('original');
+            // Lấy giá trị mới từ input
+            var newName = $row.find('.edit-name').val();
+            var newPrice = $row.find('.edit-price').val();
 
-            if (!newName || isNaN(newPrice) || newPrice < 0) {
-                alert('Vui lòng nhập đầy đủ và đúng định dạng!');
-                return;
-            }
-
-            console.log('Gửi AJAX:', { id: productId, name: newName, price: newPrice });
-
+            // --- Gửi AJAX POST đến Servlet ---
             $.ajax({
-                url: '${pageContext.request.contextPath}/editProduct',
+                url: '${pageContext.request.contextPath}/editProduct', // Đường dẫn tới servlet
                 type: 'POST',
-                data: { id: productId, name: newName, price: newPrice },
-                dataType: 'json',
-                success: function(response) {
-                    console.log('Phản hồi thành công:', response);
-                    if (response && response.success) {
-                        // Cập nhật thành công: hiển thị text mới
-                        row.find('.product-name').text(newName);
-                        row.find('.product-price').text(newPrice);
-                    } else {
-                        // Thất bại: quay lại giá trị gốc
-                        row.find('.product-name').text(originalName);
-                        row.find('.product-price').text(originalPrice);
-                        alert('Lỗi: ' + (response && response.message ? response.message : 'Cập nhật thất bại'));
-                    }
-                    // Luôn chuyển nút về trạng thái ban đầu
-                    row.find('.save-product').text('Chỉnh sửa')
-                        .removeClass('save-product btn-success')
-                        .addClass('edit-product btn-primary');
+                data: {
+                    id: productId,
+                    name: newName,
+                    price: newPrice
                 },
-                error: function(xhr, status, error) {
-                    console.log('Lỗi AJAX:', xhr.status, status, error);
-                    console.log('Phản hồi lỗi:', xhr.responseText);
-                    // Lỗi: quay lại giá trị gốc
-                    row.find('.product-name').text(originalName);
-                    row.find('.product-price').text(originalPrice);
-                    row.find('.save-product').text('Chỉnh sửa')
-                        .removeClass('save-product btn-success')
-                        .addClass('edit-product btn-primary');
-                    alert('Lỗi kết nối: ' + (xhr.responseText || 'Không thể liên lạc với server'));
+                dataType: 'json', // Mong đợi nhận về JSON
+                success: function(response) {
+                    // --- Xử lý khi thành công ---
+                    if (response.success) {
+                        // Cập nhật lại nội dung td bằng giá trị mới
+                        $row.find('.product-name').text(newName);
+                        $row.find('.product-price').text(newPrice);
+
+                        // Khôi phục nút "Lưu" thành "Chỉnh sửa"
+                        $button.text('Chỉnh sửa');
+                        $button.removeClass('btn-success save-product').addClass('btn-primary edit-product');
+                        // Hiển thị lại nút xóa
+                        $row.find('.btn-danger').show();
+                    } else {
+                        // Thông báo lỗi nếu server trả về success: false
+                        alert('Lỗi cập nhật: ' + response.message);
+                    }
+                },
+                error: function(jqXHR, textStatus, errorThrown) {
+                    // --- Xử lý khi có lỗi AJAX hoặc server trả về lỗi HTTP ---
+                    console.error("AJAX Error:", textStatus, errorThrown);
+                    // Cố gắng lấy thông báo lỗi từ response JSON nếu có
+                    var errorMsg = 'Lỗi khi gửi yêu cầu cập nhật.';
+                    try {
+                        var errorResponse = JSON.parse(jqXHR.responseText);
+                        if (errorResponse && errorResponse.message) {
+                            errorMsg = errorResponse.message;
+                        }
+                    } catch(e) {
+                        // Không parse được JSON
+                    }
+                    alert(errorMsg);
+                    // Có thể bạn muốn khôi phục lại trạng thái ban đầu hoặc giữ nguyên input để sửa lỗi
+                    // Ví dụ: Khôi phục nút
+                    // $button.text('Chỉnh sửa');
+                    // $button.removeClass('btn-success save-product').addClass('btn-primary edit-product');
+                    // $row.find('.btn-danger').show();
                 }
             });
         });
